@@ -42,3 +42,38 @@ class Autoencoder(nn.Module):
         decoded = self.decoder(encoded)
 
         return encoded, decoded
+
+def index_iter(n_obs, batch_size):
+    indices = torch.randperm(n_obs)
+    for i in range(0, n_obs, batch_size):
+        yield indices[i: min(i + batch_size, n_obs)]
+        
+def train_autoencoder(X, autoencoder, lr, batch_size, num_epochs, optim = torch.optim.Adam, **kwargs):
+    optimizer = optim(autoencoder.parameters(), lr=lr, **kwargs)
+    
+    l2_loss = nn.MSELoss(reduction='sum')
+    
+    n_obs = X.shape[0]
+    
+    t_X = torch.from_numpy(X)
+    
+    for epoch in range(num_epochs):
+        autoencoder.train()
+        
+        for step, selection in enumerate(index_iter(n_obs, batch_size)):
+            batch = t_X[selection]
+            
+            encoded, decoded = autoencoder(batch)
+            
+            loss = l2_loss(decoded, batch)/len(selection)
+            
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        autoencoder.eval()
+        
+        t_encoded, t_decoded = autoencoder(t_X)
+        t_loss = l2_loss(t_decoded, t_X).data.numpy()/n_obs
+        
+        print('Epoch:', epoch, '-- total train loss: %.4f' % t_loss)
